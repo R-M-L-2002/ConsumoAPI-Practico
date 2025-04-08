@@ -7,6 +7,7 @@ const ObjectsContainer = () => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const [searchObjects, setSearchObjects] = useState (false);
+    const [localObjects, setLocalObjects] = useState ([])
 
     //GET
     const getObjects = async () => {
@@ -28,23 +29,8 @@ const ObjectsContainer = () => {
         }
     }
 
-    useEffect (() => {
-        if (searchObjects) {
-            setLoading(true)
-            getObjects();
-        }
-    }, [searchObjects]);
-
     //POST
-    const createObjects = async (name, feature, price, year) => {
-        const bodyPost = {
-            name,
-            data: {
-                feature,
-                price,
-                year
-            }
-        };
+    const createObjects = async (newObject) => {
         try {
             const response = await fetch (`https://api.restful-api.dev/objects`, {
                 method: 'POST',
@@ -52,15 +38,25 @@ const ObjectsContainer = () => {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify(
-                    bodyPost
+                    newObject
                 )
             });
-                if (response.ok) {
-                    const newObject = await response.json();
-                    console.log(newObject, "Creado");
-                    localStorage.setItem('objectId', newObject.id); //guardar id en la localStorage
-                    setUsers((prevUsers) => [...prevUsers, newObject]) //para que se vea en el listado
+                if (response.status === 200) {
+                    const createdNewObject = await response.json();
 
+                    const updateUsers = [... users, createdNewObject];
+
+                    setUsers(updateUsers);
+
+                    const updateLocal = [... localObjects, createdNewObject];
+
+                    setLocalObjects(updateLocal);
+
+                    localStorage.setItem(
+                        "createdObjects", JSON.stringify(updateLocal
+
+                        ));
+                    console.log('Objeto Creado')
                 } else {
                     setError(response.statusText)
                 }                                                                   
@@ -73,28 +69,28 @@ const ObjectsContainer = () => {
     };
 
     //PUT
-    const editObjects = async (name, feature, price, year) => {
-        const objectId = localStorage.getItem('objectId');
-        const bodyPut = {
-            name,
-            data: {
-                feature,
-                price,
-                year
-            }
-        };
+    const editObjects = async (id, updateObject) => {
         try {
-            const response = await fetch (`https://api.restful-api.dev/objects/${objectId}`, {
+            const response = await fetch (`https://api.restful-api.dev/objects/${id}`, {
                 method: 'PUT',
                 headers: {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify(
-                    bodyPut
+                    updateObject
                 )
             });
-                if (response.ok) {
-                    const updateObject = await response.json();
+                if (response.status === 200) {
+                    const updateThisObject = await response.json();
+
+                    const updateLocal = localObjects.map(
+                        obj => obj.id === id ? updateThisObject : obj
+                    );
+                    setLocalObjects(updateLocal);
+
+                    localStorage.setItem(
+                        'createdObjects', JSON.stringify(updateLocal
+                        ));
                     console.log(updateObject, "Actualizado")
                 } else {
                     setError(response.statusText)
@@ -108,27 +104,42 @@ const ObjectsContainer = () => {
     };
     
     //DELETE
-    const deleteObjects = async () => {
-        const objectId = localStorage.getItem('objectId');
-
+    const deleteObjects = async (id) => {
         try {
-            const response = await fetch (`https://api.restful-api.dev/objects/${objectId}`, {
+            const response = await fetch (`https://api.restful-api.dev/objects/${id}`, {
                 method: 'DELETE'
             });
                 if (response.ok) {
                     console.log('Objeto eliminado');
-                    localStorage.removeItem('objectId')
+
+                    const updateLocal = localObjects.filter(obj => obj.id !== id);
+
+                    setLocalObjects(updateLocal);
+                    
+                    localStorage.setItem('createdObjects',  JSON.stringify(updateLocal))
 
                 } else {
                     setError(response.statusText)
                 }                                                                   
-            } catch (e) {
-                console.log(e.message)
-            } finally {
-                setLoading(false)
-                setSearchObjects(false)
-            }
+            } catch (error) {
+                console.error(error)
+            } 
     }; 
+
+    useEffect(() => {
+        const saved = localStorage.getItem('createdObjects');
+
+        if (saved) {
+            setLocalObjects(JSON.parse(saved))
+        }
+    }, []);
+
+    useEffect (() => {
+        if (searchObjects) {
+            setLoading(true)
+            getObjects();
+        }
+    }, [searchObjects]);
 
     return(
         <ObjectsView 
@@ -137,10 +148,11 @@ const ObjectsContainer = () => {
         error={error} 
         setSearchObjects={setSearchObjects}
         createObjects={createObjects}
+        localObjects={localObjects}
         editObjects={editObjects}
         deleteObjects={deleteObjects}
         />
-    )
+    );
 }
 
 export default ObjectsContainer
